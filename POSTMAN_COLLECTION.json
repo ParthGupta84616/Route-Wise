@@ -1,0 +1,165 @@
+{
+  "info": {
+    "_postman_id": "12345-67890-abcdef",
+    "name": "Route Wise API",
+    "description": "API for Route Wise - EV Route Planning",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "me"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vehicles",
+      "item": [
+        {
+          "name": "Get All Vehicles",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/vehicles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "vehicles"]
+            }
+          }
+        },
+        {
+          "name": "Create Vehicle",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/vehicles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "vehicles"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My Nexon EV\",\n  \"model\": \"Tata Nexon EV Max\",\n  \"size\": \"medium\",\n  \"batteryCapacity\": 40.5,\n  \"consumption_kWh_per_km\": 0.14,\n  \"kmRun\": 5000,\n  \"degradationPercent\": 2,\n  \"chargingPortType\": \"CCS\",\n  \"maxChargePower\": 50,\n  \"topSpeed\": 140\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Routes",
+      "item": [
+        {
+          "name": "Plan Route",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/plan-route",
+              "host": ["{{base_url}}"],
+              "path": ["api", "plan-route"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": \"12.9716,77.5946\",\n  \"destination\": \"12.2958,76.6394\",\n  \"vehicleId\": \"64xyz789...\",\n  \"currentChargePercent\": 80,\n  \"segmentDistanceMeters\": 300,\n  \"preferredMaxDetourKm\": 5\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Geocoding",
+      "item": [
+        {
+          "name": "Address to Coordinates",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/geocode?address=Bangalore Airport&country=IN",
+              "host": ["{{base_url}}"],
+              "path": ["api", "geocode"],
+              "query": [
+                {"key": "address", "value": "Bangalore Airport"},
+                {"key": "country", "value": "IN"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Coordinates to Address",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/geocode/reverse?lat=12.9716&lng=77.5946",
+              "host": ["{{base_url}}"],
+              "path": ["api", "geocode", "reverse"],
+              "query": [
+                {"key": "lat", "value": "12.9716"},
+                {"key": "lng", "value": "77.5946"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Fuzzy Address (Low Confidence)",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {
+              "raw": "{{base_url}}/api/geocode?address=banglore+airprt",
+              "host": ["{{base_url}}"],
+              "path": ["api", "geocode"],
+              "query": [
+                {"key": "address", "value": "banglore airprt"}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
