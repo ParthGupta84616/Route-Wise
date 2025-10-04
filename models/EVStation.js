@@ -82,13 +82,15 @@ EVStationSchema.pre('save', function(next) {
   if (this.latitude != null && this.longitude != null) {
     this.location = {
       type: 'Point',
-      coordinates: [this.longitude, this.latitude]
+      coordinates: [this.longitude, this.latitude] // [lng, lat] order!
     };
   }
   next();
 });
 
-// Geospatial 2dsphere index for location queries
+// Geospatial 2dsphere index for location queries (critical for $near queries)
 EVStationSchema.index({ location: '2dsphere' });
+EVStationSchema.index({ isOperational: 1 });
+EVStationSchema.index({ city: 1 });
 
 module.exports = mongoose.model('EVStation', EVStationSchema);

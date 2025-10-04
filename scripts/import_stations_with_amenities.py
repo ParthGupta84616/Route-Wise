@@ -6,6 +6,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 import random
+import re  # added for case-insensitive DB name lookup
 
 # Load environment variables
 load_dotenv()
@@ -280,12 +281,13 @@ def import_stations_from_csv(csv_path):
     print("🚀 Starting import process...")
     print(f"📂 Reading CSV: {csv_path}")
     
-    # Clear existing collection
-    collection.delete_many({})
-    print("🗑️  Cleared existing stations\n")
+    # Do NOT clear existing collection so we can skip duplicates
+    # collection.delete_many({})
+    # print("🗑️  Cleared existing stations\n")
     
     imported_count = 0
     error_count = 0
+    duplicate_count = 0  # track skipped duplicates
     
     with open(csv_path, 'r', encoding='utf-8') as file:
         csv_reader = csv.DictReader(file)
@@ -298,6 +300,19 @@ def import_stations_from_csv(csv_path):
                 latitude = float(row.get('lattitude', 0))
                 longitude = float(row.get('longitude', 0))
                 charger_type = row.get('type', '').strip()
+                
+                # Skip if name missing
+                if not name:
+                    print(f"⚠️  Skipping row {idx} - Missing name")
+                    error_count += 1
+                    continue
+                
+                # Check for existing station with same name (case-insensitive)
+                existing = collection.find_one({'name': {'$regex': f'^{re.escape(name)}$', '$options': 'i'}})
+                if existing:
+                    print(f"⏭️  Skipping import for '{name}' - already exists in DB (id: {existing.get('_id')})")
+                    duplicate_count += 1
+                    continue
                 
                 # Skip if coordinates are invalid
                 if latitude == 0 or longitude == 0:
@@ -348,6 +363,7 @@ def import_stations_from_csv(csv_path):
     print(f"✅ Import Complete!")
     print(f"📊 Total Processed: {idx}")
     print(f"✅ Successfully Imported: {imported_count}")
+    print(f"⏭️  Duplicates Skipped: {duplicate_count}")
     print(f"❌ Errors: {error_count}")
     print(f"{'='*60}")
 

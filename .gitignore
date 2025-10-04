@@ -46,3 +46,4 @@ coverage/
 *.csv
 !example.csv
 .cache/
+".env.local" 
