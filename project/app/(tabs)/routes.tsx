@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Modal, Dimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Modal, Dimensions, Image } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { storage } from '@/utils/storage';
@@ -13,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient as LG } from 'expo-linear-gradient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const AMENITIES = [
@@ -133,8 +134,8 @@ export default function RoutesScreen() {
           setDestinationAddress(formattedAddress);
         }
       }
-    } catch (error) {
-      console.error('Geocoding error:', error);
+    } catch (error: any) {
+      console.error('Geocoding error:', error?.message || String(error));
     } finally {
       setIsGeocoding(false);
     }
@@ -154,8 +155,8 @@ export default function RoutesScreen() {
           setDestinationAddress(address);
         }
       }
-    } catch (error) {
-      console.error('Address fetch error:', error);
+    } catch (error: any) {
+      console.error('Address fetch error:', error?.message || String(error));
     }
   };
 
@@ -220,7 +221,7 @@ export default function RoutesScreen() {
         },
       });
     } catch (error: any) {
-      console.error('Route planning error:', error);
+      console.error('Route planning error:', error?.response?.data?.message || error?.message || String(error));
       Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to plan route.');
     } finally {
       setIsPlanning(false);
@@ -240,8 +241,8 @@ export default function RoutesScreen() {
       } else {
         Alert.alert('Location Permission', 'Location access is needed to use your current position as starting point.');
       }
-    } catch (error) {
-      console.error('Location permission error:', error);
+    } catch (error: any) {
+      console.error('Location permission error:', error?.message || String(error));
     }
   };
 
@@ -255,8 +256,8 @@ export default function RoutesScreen() {
         lng: location.coords.longitude,
       };
       setCurrentLocation(coords);
-    } catch (error) {
-      console.error('Get location error:', error);
+    } catch (error: any) {
+      console.error('Get location error:', error?.message || String(error));
       Alert.alert('Location Error', 'Could not get your current location. Please enter manually.');
     }
   };
@@ -287,7 +288,10 @@ export default function RoutesScreen() {
       >
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>Plan Your Journey</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Image source={require('../../assets/images/logo.png')} style={{ width: 36, height: 36, resizeMode: 'contain' }} />
+              <Text style={styles.title}>Plan Your Journey</Text>
+            </View>
             <Navigation size={28} color="#fff" strokeWidth={2.5} />
           </View>
           <Text style={styles.subtitle}>Smart EV route planning with charging stops</Text>
@@ -449,7 +453,7 @@ export default function RoutesScreen() {
                       />
                       <Text style={styles.inputUnit}>%</Text>
                     </View>
-                    {estimatedChargedKwh && (
+                    {estimatedChargedKwh !== null && !isNaN(estimatedChargedKwh) && (
                       <Text style={styles.inputHint}>≈ {estimatedChargedKwh.toFixed(1)}kWh</Text>
                     )}
                   </View>
@@ -659,7 +663,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   headerContent: {
-    // vertical spacing via margins
+    gap: 4,
   },
   headerTop: {
     flexDirection: 'row',
@@ -704,17 +708,19 @@ const styles = StyleSheet.create({
   },
   warningContent: {
     flex: 1,
-    // spacing via margins
+    gap: 4,
   },
   warningTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#991b1b',
+    marginBottom: 0,
   },
   warningText: {
     fontSize: 14,
     color: '#dc2626',
     lineHeight: 20,
+    marginTop: 0,
   },
   vehicleCard: {
     flexDirection: 'row',
@@ -741,6 +747,7 @@ const styles = StyleSheet.create({
   },
   vehicleInfo: {
     flex: 1,
+    gap: 4,
   },
   vehicleLabel: {
     fontSize: 11,
@@ -758,17 +765,19 @@ const styles = StyleSheet.create({
   },
   vehicleStats: {
     flexDirection: 'row',
-    // spacing via marginRight on stat items
+    gap: 12,
   },
   vehicleStat: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 16,
+    gap: 6,
+    marginRight: 0,
   },
   vehicleStatText: {
     fontSize: 12,
     color: '#64748b',
     fontWeight: '600',
+    marginLeft: 0,
   },
   sectionCard: {
     backgroundColor: '#fff',
@@ -786,6 +795,7 @@ const styles = StyleSheet.create({
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginBottom: 16,
   },
   sectionTitle: {
@@ -843,13 +853,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#3b82f6',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 2,
+    marginRight: 4,
     borderRadius: 10,
   },
   quickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     marginTop: 8,
     backgroundColor: '#f0fdf4',
     borderRadius: 10,
@@ -866,6 +877,7 @@ const styles = StyleSheet.create({
   addressBadge: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginTop: 8,
     backgroundColor: '#f0fdf4',
     borderRadius: 10,
@@ -881,6 +893,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    gap: 12,
     marginBottom: 12,
   },
   halfInput: {
@@ -919,7 +932,7 @@ const styles = StyleSheet.create({
   },
   strategyRow: {
     flexDirection: 'row',
-    marginRight: 8,
+    gap: 8,
   },
   strategyChip: {
     flex: 1,
@@ -946,11 +959,14 @@ const styles = StyleSheet.create({
   amenitiesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 10,
   },
   amenityChipNew: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
+    gap: 6,
+    marginRight: 0,
+    marginBottom: 0,
     paddingVertical: 10,
     paddingHorizontal: 14,
     borderRadius: 20,
@@ -991,12 +1007,13 @@ const styles = StyleSheet.create({
   },
   actionButtons: {
     marginVertical: 12,
+    gap: 10,
   },
   planButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 10,
+    gap: 8,
     backgroundColor: '#3b82f6',
     borderRadius: 12,
     paddingVertical: 16,

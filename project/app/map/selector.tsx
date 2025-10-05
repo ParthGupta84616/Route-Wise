@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { WebView } from 'react-native-webview';
@@ -222,7 +222,10 @@ export default function MapSelectorScreen() {
           <ArrowLeft size={24} color="#1e293b" />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Select Destination</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.headerTitle}>Select Destination</Text>
+            <Image source={require('../../assets/images/logo.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
+          </View>
           <Text style={styles.headerSubtitle}>Tap on the map</Text>
         </View>
       </View>

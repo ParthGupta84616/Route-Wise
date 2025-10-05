@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView, Dimensions, Image } from 'react-native';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
 import { LogOut, User, Mail, Calendar, Settings, Shield, HelpCircle, Info, ChevronRight } from 'lucide-react-native';
@@ -62,7 +62,10 @@ export default function ProfileScreen() {
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
       >
-        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>Profile</Text>
+          <Image source={require('../../assets/images/logo.png')} style={{ width: 36, height: 36, resizeMode: 'contain' }} />
+        </View>
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -199,6 +202,11 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 24,
     paddingHorizontal: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 32,
@@ -360,12 +368,12 @@ const styles = StyleSheet.create({
   },
   menuTextContainer: {
     flex: 1,
+    gap: 2,
   },
   menuItemText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 2,
   },
   menuItemSubtext: {
     fontSize: 12,

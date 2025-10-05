@@ -1,0 +1,70 @@
+High-level pipeline
+- Get base route from OSRM (getOSRMRoute).
+- Split route into adaptive segments (createOptimizedSegments).
+- Batch-enrich segments with weather and traffic (enrichSegmentsWithConditions).
+- Compute cumulative consumption and battery profile using prefix-sum style accumulation (calculateCumulativeConsumption).
+- Analyze whether charging is required and urgency (analyzeChargingNeeds).
+- Identify critical low-battery points on the route (findCriticalChargingPoints).
+- Search for candidate stations with a multi‑strategy, cached geospatial search (findOptimalStations → rankStations).
+- Plan charging stops using an enhanced greedy algorithm with reachability and look‑ahead (enhancedGreedyChargingStops).
+- Format stations and insert charging stops into the route (formatEnhancedChargingStations, insertChargingStopsIntoRoute).
+- Compute final trip metrics and destination battery checks; recommend extra charging if needed (calculateFinalMetrics).
+
+Key algorithm details
+- Segmentation
+  - Adaptive segment length: targetDistanceM but increased for very long routes.
+  - Each segment stores distance, expected consumption (consumption_kWh_per_km × distKm) and degradation factor.
+
+- Enrichment (parallelized batch processing)
+  - Batches of segments processed (batchSize = 10).
+  - For each segment fetch weather + traffic; compute traffic-adjusted duration and traffic battery impact.
+  - Update cumulative ETA and predicted speed.
+
+- Consumption & battery profile
+  - Prefix-sum accumulation of expectedConsumptionKwh to get cumulative consumption.
+  - Battery remaining at each segment = initialBatteryKwh - cumulativeConsumption.
+  - Track min battery percent and produce up to 5 critical points when batteryPercent < 30%.
+
+- Charging need analysis
+  - Two constraints: driving safety buffer (minBuffer) and user requested minimum at destination.
+  - totalBatteryNeeded = max(totalConsumption + minBuffer, totalConsumption + minBatteryAtDestination)
+  - chargingRequired if initialBattery < totalBatteryNeeded; urgency tiers based on deficit relative to initial battery.
+
+- Station search & ranking
+  - Cache results keyed by critical points and detour radius (TTL 1 hour).
+  - Strategies:
+    - Search around critical points (wider radius).
+    - Sample along route (start, middle, end).
+    - Fallback: load many stations and filter by manual haversine distance.
+  - Rank by combined score: proximity to critical points, power (powerKw), amenities, numberOfChargers, and strategy-specific boosts.
+
+- Enhanced greedy planner (core charging selection)
+  - Checks reachability to each candidate station from current position:
+    - Compute consumption along route to closest segment + detour consumption (detourKm × consumptionRate × 1.2).
+    - Require arrival battery >= minSafeBattery (5% of maxBattery).
+  - Score reachable stations using position preference, detour penalty, power bonus, and battery margin.
+  - Iterative selection up to maxAttempts (3 stops) until remaining deficit <= 0.
+  - If no reachable station, return an error object with diagnostics.
+  - For each selected stop compute chargeAmount (cap to ~80% + buffers) and update current battery.
+
+- Insertion & formatting
+  - Format station objects with ETA, estimated charging time, added percent, charger info.
+  - Insert charging segments into the route at the nearest segment index; recalculate indexes.
+
+- Final metrics
+  - Sum travel + charging time, compute battery at destination = initial + chargedDuringTrip - totalConsumption.
+  - If final battery < user request, find nearest dest station and suggest extra charging (kWh and estimated time).
+
+Assumptions, safety buffers and tunables
+- Safety buffers: minSafeBattery = 5% of maxBattery; minBuffer = 15% of maxBattery for driving.
+- Detour consumption inflated by 20% for margin.
+- Charging cap aims ~80% per stop, limited by station power.
+- Max 3 planned stops by default (maxAttempts = 3).
+- Batch size for API calls = 10; caching for station queries TTL = 1 hour.
+
+Potential limitations / failure modes (concise)
+- Greedy approach is heuristic (not globally optimal) and limited to 3 stops.
+- Reachability relies on segment-to-station nearest-segment heuristic — may misestimate actual route detours.
+- OSRM route geometry sampling → segment endpoints may not align with ideal detour points.
+- Real-time charger availability and queueing are approximated by numberOfChargers only.
+- Heavy reliance on database geospatial indices; fallback manual calculation may be costly.

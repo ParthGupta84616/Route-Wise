@@ -1,8 +1,8 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Dimensions, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Dimensions, Animated, Image } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
-import { Car, Zap, MapPin, Battery, Navigation, Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
+import { Zap, MapPin, Battery, Navigation, Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import { storage } from '@/utils/storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -101,7 +101,10 @@ export default function AuthScreen() {
               colors={['#3b82f6', '#2563eb']}
               style={styles.loadingLogoBg}
             >
-              <Car size={48} color="#fff" strokeWidth={2} />
+              <Image
+                source={require('../assets/images/logo.png')}
+                style={{ width: 56, height: 56, resizeMode: 'contain' }}
+              />
             </LinearGradient>
           </View>
           <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 20 }} />
@@ -150,7 +153,10 @@ export default function AuthScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.logoContainer}
           >
-            <Car size={40} color="#fff" strokeWidth={2.5} />
+            <Image
+              source={require('../assets/images/logo.png')}
+              style={{ width: 64, height: 64, resizeMode: 'contain' }}
+            />
           </LinearGradient>
 
           <Text style={styles.appTitle}>EV Route Planner</Text>
@@ -458,10 +464,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
+    gap: 8,
   },
   featurePill: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -473,6 +481,7 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 12,
     fontWeight: '600',
+    marginLeft: 4,
   },
   authCard: {
     marginBottom: 32,
@@ -480,29 +489,29 @@ const styles = StyleSheet.create({
   glassCard: {
     // softened glass background so the padded form area doesn't appear as a bright patch
     backgroundColor: 'rgba(255, 255, 255, 0.1)', // reduced from 0.08
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: 20, // slightly reduced for a tighter look
+    padding: 16, // reduced from 24 to make the card more compact
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)', // subtler edge
-    // slightly deeper, subtler shadow to blend with background
+    // slightly reduced shadow to match smaller card
     shadowColor: 'rgba(0,0,0,0)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   tabContainer: {
     flexDirection: 'row',
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
     borderRadius: 12,
     padding: 4,
-    marginBottom: 24,
+    marginBottom: 20, // slightly tightened
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   tab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 8, // reduced from 10
     alignItems: 'center',
     borderRadius: 8,
   },
@@ -520,30 +529,32 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   form: {
-    // vertical spacing handled by nested elements' margin/padding
+    gap: 12, // reduced spacing between form groups
   },
   inputGroup: {
-    // spacing via marginBottom on inputGroup usage
+    marginBottom: 0,
+    paddingBottom: 0,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
     color: '#e2e8f0',
+    marginBottom: 8,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10, // reduced spacing between icon and input
     backgroundColor: 'rgba(15, 23, 42, 0.5)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 10, // reduced from 12 for a tighter feel
+    paddingHorizontal: 12, // reduced from 16
+    paddingVertical: 8, // reduced from 12
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14, // slightly smaller font
     color: '#fff',
     fontWeight: '500',
   },
@@ -553,6 +564,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239, 68, 68, 0.3)',
     borderRadius: 10,
     padding: 12,
+    marginTop: 4,
   },
   errorText: {
     color: '#fca5a5',
@@ -561,14 +573,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   submitButton: {
-    marginTop: 8,
+    marginTop: 4,
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#3b82f6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.35,
+    shadowRadius: 6, // reduced shadow radius for compact feel
+    elevation: 3,
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -577,18 +589,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 16,
+    gap: 8, // reduced gap between text and icon
+    paddingVertical: 12, // reduced from 16
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15, // reduced from 16
     fontWeight: '700',
     letterSpacing: 0.3,
   },
   switchButton: {
     paddingVertical: 12,
     alignItems: 'center',
+    marginTop: 4,
   },
   switchText: {
     color: '#94a3b8',

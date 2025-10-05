@@ -1,11 +1,14 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Dimensions } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { useVehicles } from '@/hooks/useVehicles';
 import { storage } from '@/utils/storage';
-import { Plus, Check, RefreshCw } from 'lucide-react-native';
+import { Plus, Check, RefreshCw, Car, Battery, Gauge, ArrowRight, Zap } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function SelectVehicleScreen() {
   const router = useRouter();
@@ -14,14 +17,12 @@ export default function SelectVehicleScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Check auth when screen loads
   useEffect(() => {
     if (isAuthenticated === false) {
       router.replace('/');
     }
   }, [isAuthenticated, router]);
 
-  // Reset selection when screen is focused
   useFocusEffect(
     useCallback(() => {
       setSelectedId(null);
@@ -50,7 +51,7 @@ export default function SelectVehicleScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
+        <ActivityIndicator size="large" color="#3b82f6" />
         <Text style={styles.loadingText}>Loading vehicles...</Text>
       </View>
     );
@@ -58,22 +59,40 @@ export default function SelectVehicleScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Select Your Vehicle</Text>
-          <Text style={styles.subtitle}>Choose a vehicle to start planning routes</Text>
+      {/* Enhanced Header with Gradient */}
+      <LinearGradient
+        colors={['#3b82f6', '#2563eb']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
+            <View style={styles.headerIconBadge}>
+              <Car size={28} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.title}>Select Your Vehicle</Text>
+              <Text style={styles.subtitle}>Choose a vehicle to start planning routes</Text>
+            </View>
+          </View>
         </View>
-      </View>
+      </LinearGradient>
 
+      {/* Action Buttons */}
       <View style={styles.actions}>
         <TouchableOpacity
           style={styles.syncButton}
           onPress={handleSyncFromBackend}
           disabled={isSyncing}
         >
-          <RefreshCw size={18} color="#2563eb" />
+          {isSyncing ? (
+            <ActivityIndicator size="small" color="#3b82f6" />
+          ) : (
+            <RefreshCw size={18} color="#3b82f6" strokeWidth={2.5} />
+          )}
           <Text style={styles.syncButtonText}>
-            {isSyncing ? 'Syncing...' : 'Sync from Server'}
+            {isSyncing ? 'Syncing...' : 'Sync'}
           </Text>
         </TouchableOpacity>
 
@@ -81,47 +100,82 @@ export default function SelectVehicleScreen() {
           style={styles.addButton}
           onPress={() => router.push('/vehicle/add')}
         >
-          <Plus size={18} color="#fff" />
+          <Plus size={18} color="#fff" strokeWidth={2.5} />
           <Text style={styles.addButtonText}>Add New</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        style={styles.content} 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {vehicles.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No vehicles found</Text>
-            <Text style={styles.emptyText}>Add your first vehicle to get started</Text>
+            <View style={styles.emptyIconContainer}>
+              <LinearGradient
+                colors={['#dbeafe', '#eff6ff']}
+                style={styles.emptyIconGradient}
+              >
+                <Car size={64} color="#3b82f6" strokeWidth={1.5} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.emptyTitle}>No Vehicles Found</Text>
+            <Text style={styles.emptyText}>
+              Add your first electric vehicle to start planning optimized routes
+            </Text>
             <TouchableOpacity
               style={styles.emptyButton}
               onPress={() => router.push('/vehicle/add')}
             >
-              <Text style={styles.emptyButtonText}>Add Vehicle</Text>
+              <Plus size={20} color="#fff" strokeWidth={2.5} />
+              <Text style={styles.emptyButtonText}>Add Your First Vehicle</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
+            <Text style={styles.sectionLabel}>Available Vehicles ({vehicles.length})</Text>
+            
             {vehicles.map((vehicle) => (
               <TouchableOpacity
-                key={vehicle._id}
+                key={vehicle._id || vehicle.id}
                 style={[
                   styles.vehicleCard,
-                  selectedId === vehicle._id && styles.vehicleCardSelected,
+                  selectedId === (vehicle._id || vehicle.id) && styles.vehicleCardSelected,
                 ]}
-                onPress={() => setSelectedId(vehicle._id)}
+                onPress={() => setSelectedId(vehicle._id || vehicle.id)}
+                activeOpacity={0.7}
               >
-                <View style={styles.vehicleInfo}>
-                  <Text style={styles.vehicleName}>{vehicle.name}</Text>
-                  <Text style={styles.vehicleModel}>{vehicle.model}</Text>
-                  <View style={styles.vehicleSpecs}>
-                    <Text style={styles.specText}>⚡ {vehicle.batteryCapacity} kWh</Text>
-                    <Text style={styles.specText}>📊 {vehicle.consumption_kWh_per_km} kWh/km</Text>
+                <View style={styles.vehicleCardContent}>
+                  <View style={[
+                    styles.vehicleIcon,
+                    selectedId === (vehicle._id || vehicle.id) && styles.vehicleIconSelected
+                  ]}>
+                    <Car size={24} color={selectedId === (vehicle._id || vehicle.id) ? '#fff' : '#3b82f6'} strokeWidth={2} />
                   </View>
+                  
+                  <View style={styles.vehicleInfo}>
+                    <Text style={styles.vehicleName}>{vehicle.name}</Text>
+                    <Text style={styles.vehicleModel}>{vehicle.model}</Text>
+                    
+                    <View style={styles.vehicleSpecs}>
+                      <View style={styles.specBadge}>
+                        <Battery size={14} color="#10b981" strokeWidth={2} />
+                        <Text style={styles.specText}>{vehicle.batteryCapacity}kWh</Text>
+                      </View>
+                      <View style={styles.specBadge}>
+                        <Gauge size={14} color="#f59e0b" strokeWidth={2} />
+                        <Text style={styles.specText}>{vehicle.consumption_kWh_per_km}kWh/km</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  {selectedId === (vehicle._id || vehicle.id) && (
+                    <View style={styles.checkmark}>
+                      <Check size={20} color="#fff" strokeWidth={3} />
+                    </View>
+                  )}
                 </View>
-                {selectedId === vehicle._id && (
-                  <View style={styles.checkmark}>
-                    <Check size={24} color="#fff" />
-                  </View>
-                )}
               </TouchableOpacity>
             ))}
 
@@ -130,7 +184,8 @@ export default function SelectVehicleScreen() {
               onPress={handleSelectVehicle}
               disabled={!selectedId}
             >
-              <Text style={styles.confirmButtonText}>Continue</Text>
+              <Text style={styles.confirmButtonText}>Continue to Route Planning</Text>
+              <ArrowRight size={20} color="#fff" strokeWidth={2.5} />
             </TouchableOpacity>
           </>
         )}
@@ -149,29 +204,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
+    gap: 16,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: '#64748b',
+    fontWeight: '500',
   },
-  header: {
+  headerGradient: {
+    paddingTop: 50,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+  },
+  headerContent: {
+    gap: 12,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  headerIconBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748b',
+    color: 'rgba(255, 255, 255, 0.9)',
     marginTop: 4,
+    fontWeight: '500',
   },
   actions: {
     flexDirection: 'row',
@@ -189,15 +263,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#2563eb',
-    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#3b82f6',
+    backgroundColor: '#eff6ff',
   },
   syncButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563eb',
+    color: '#1e40af',
   },
   addButton: {
     flexDirection: 'row',
@@ -206,12 +280,17 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#2563eb',
+    borderRadius: 10,
+    backgroundColor: '#3b82f6',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   addButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
   },
   content: {
@@ -219,92 +298,170 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40,
+  },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
   },
   vehicleCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,
     borderColor: '#e2e8f0',
-    flexDirection: 'row',
-    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   vehicleCardSelected: {
-    borderColor: '#2563eb',
+    borderColor: '#3b82f6',
     backgroundColor: '#eff6ff',
+  },
+  vehicleCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  vehicleIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vehicleIconSelected: {
+    backgroundColor: '#3b82f6',
   },
   vehicleInfo: {
     flex: 1,
   },
   vehicleName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
     color: '#1e293b',
-    marginBottom: 4,
+    marginBottom: 2,
+    letterSpacing: -0.3,
   },
   vehicleModel: {
     fontSize: 14,
     color: '#64748b',
     marginBottom: 8,
+    fontWeight: '500',
   },
   vehicleSpecs: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
+  },
+  specBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   specText: {
     fontSize: 12,
     color: '#64748b',
+    fontWeight: '600',
   },
   checkmark: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#2563eb',
+    backgroundColor: '#3b82f6',
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   confirmButton: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
-    paddingVertical: 14,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 16,
     marginTop: 16,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   confirmButtonDisabled: {
     opacity: 0.4,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   confirmButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 80,
+    paddingHorizontal: 40,
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
+  emptyIconContainer: {
     marginBottom: 24,
   },
+  emptyIconGradient: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 12,
+    letterSpacing: -0.3,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
   emptyButton: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 28,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   emptyButtonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
 });

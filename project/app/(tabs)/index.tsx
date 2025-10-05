@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
     paddingTop: 8,
   },
   statItem: {
@@ -386,6 +386,7 @@ const styles = StyleSheet.create({
   },
   vehiclesGrid: {
     gap: 16,
+    marginTop: 4,
   },
   floatingAddButton: {
     position: 'absolute',
