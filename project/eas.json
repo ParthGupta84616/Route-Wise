@@ -4,9 +4,11 @@
   },
   "build": {
     "production": {
-      "node": "20.0.0",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "YARN_ENABLE_IMMUTABLE_INSTALLS": "false"
       }
     }
   }
