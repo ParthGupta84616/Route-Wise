@@ -64,7 +64,7 @@ export default function ProfileScreen() {
       >
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Profile</Text>
-          <Image source={require('../../assets/images/logo.png')} style={{ width: 36, height: 36, resizeMode: 'contain' }} />
+          <Image source={require('../../assets/images/icon.png')} style={{ width: 36, height: 36, resizeMode: 'contain' }} />
         </View>
       </LinearGradient>
 

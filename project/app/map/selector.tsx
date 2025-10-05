@@ -224,7 +224,7 @@ export default function MapSelectorScreen() {
         <View style={styles.headerInfo}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Text style={styles.headerTitle}>Select Destination</Text>
-            <Image source={require('../../assets/images/logo.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
+            <Image source={require('../../assets/images/icon.png')} style={{ width: 28, height: 28, resizeMode: 'contain' }} />
           </View>
           <Text style={styles.headerSubtitle}>Tap on the map</Text>
         </View>

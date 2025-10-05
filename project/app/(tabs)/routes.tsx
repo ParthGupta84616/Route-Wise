@@ -289,7 +289,7 @@ export default function RoutesScreen() {
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Image source={require('../../assets/images/logo.png')} style={{ width: 36, height: 36, resizeMode: 'contain' }} />
+              <Image source={require('../../assets/images/icon.png')} style={{ width: 36, height: 36, resizeMode: 'contain' }} />
               <Text style={styles.title}>Plan Your Journey</Text>
             </View>
             <Navigation size={28} color="#fff" strokeWidth={2.5} />

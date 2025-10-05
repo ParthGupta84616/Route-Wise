@@ -102,7 +102,7 @@ export default function AuthScreen() {
               style={styles.loadingLogoBg}
             >
               <Image
-                source={require('../assets/images/logo.png')}
+                source={require('../assets/images/icon.png')}
                 style={{ width: 56, height: 56, resizeMode: 'contain' }}
               />
             </LinearGradient>
@@ -154,7 +154,7 @@ export default function AuthScreen() {
             style={styles.logoContainer}
           >
             <Image
-              source={require('../assets/images/logo.png')}
+              source={require('../assets/images/icon.png')}
               style={{ width: 64, height: 64, resizeMode: 'contain' }}
             />
           </LinearGradient>
