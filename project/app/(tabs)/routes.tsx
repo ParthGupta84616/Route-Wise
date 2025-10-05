@@ -1,23 +1,33 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Modal, Dimensions } from 'react-native';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { storage } from '@/utils/storage';
 import { useVehicles } from '@/hooks/useVehicles';
 import { routeApi } from '@/api/routeApi';
 import { RoutePlanRequest } from '@/types';
-import { Navigation, Battery, Clock, MapPin, Search } from 'lucide-react-native';
+import { 
+  Navigation, Battery, Clock, MapPin, Search, Zap, Settings, Target, 
+  TrendingUp, Gauge, ChevronDown, CheckCircle2, Car
+} from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import * as Location from 'expo-location';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const AMENITIES = ['food', 'washroom', 'ATM', 'parking', 'wifi'];
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const AMENITIES = [
+  { id: 'food', label: 'Food', emoji: '🍽️' },
+  { id: 'washroom', label: 'Restroom', emoji: '🚻' },
+  { id: 'ATM', label: 'ATM', emoji: '💰' },
+  { id: 'parking', label: 'Parking', emoji: '🅿️' },
+  { id: 'wifi', label: 'WiFi', emoji: '📶' }
+];
 
 export default function RoutesScreen() {
   const router = useRouter();
   const { vehicles } = useVehicles();
   const { isAuthenticated } = useAuth();
 
-  // Check auth when screen loads
   useEffect(() => {
     if (isAuthenticated === false) {
       router.replace('/');
@@ -35,39 +45,30 @@ export default function RoutesScreen() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [sourceCoords, setSourceCoords] = useState('');
   const [destinationCoords, setDestinationCoords] = useState('');
-  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [locationPermission, setLocationPermission] = useState<boolean>(false);
+  const [currentLocation, setCurrentLocation] = useState<{ lat: number, lng: number } | null>(null);
+  const [locationPermission, setLocationPermission] = useState(false);
+  const [sourceAddress, setSourceAddress] = useState('');
+  const [destinationAddress, setDestinationAddress] = useState('');
+  const [consumptionOverride, setConsumptionOverride] = useState('');
+  const [segmentDistanceMeters, setSegmentDistanceMeters] = useState('200');
+  const [optimizationStrategy, setOptimizationStrategy] = useState<'time' | 'cost' | 'hybrid'>('hybrid');
+  const [minimumBatteryAtDestinationPercent, setMinimumBatteryAtDestinationPercent] = useState('20');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     loadActiveVehicle();
-  }, []);
+  }, [vehicles, activeVehicleId]);
 
-  // Reset form when navigating away and back
   useFocusEffect(
     useCallback(() => {
       loadActiveVehicle();
-      
-      // Check if user selected a destination from map
-      if (global.selectedDestination) {
-        setDestination(global.selectedDestination.coords);
-        setDestinationCoords(global.selectedDestination.coords);
-        
-        // Show confirmation
-        Alert.alert(
-          'Destination Set',
-          `Selected: ${global.selectedDestination.address}`,
-          [{ text: 'OK' }]
-        );
-        
-        // Clear the global variable
-        global.selectedDestination = null;
+      if ((global as any).selectedDestination) {
+        setDestination((global as any).selectedDestination.coords);
+        setDestinationCoords((global as any).selectedDestination.coords);
+        setDestinationAddress((global as any).selectedDestination.address);
+        (global as any).selectedDestination = null;
       }
-      
-      return () => {
-        // Optional: Reset form when leaving the screen
-        // setSource('');
-        // setDestination('');
-      };
+      return () => { };
     }, [])
   );
 
@@ -78,41 +79,83 @@ export default function RoutesScreen() {
 
   const activeVehicle = vehicles.find(v => v._id === activeVehicleId || v.id === activeVehicleId);
 
-  const toggleAmenity = (amenity: string) => {
+  const estimatedChargedKwh = (() => {
+    const pct = parseFloat(currentCharge || '0');
+    if (!activeVehicle?.batteryCapacity || isNaN(pct)) return null;
+    return (activeVehicle.batteryCapacity * (Math.min(100, Math.max(0, pct)) / 100));
+  })();
+
+  const toggleAmenity = (amenityId: string) => {
     setSelectedAmenities(prev =>
-      prev.includes(amenity)
-        ? prev.filter(a => a !== amenity)
-        : [...prev, amenity]
+      prev.includes(amenityId) ? prev.filter(a => a !== amenityId) : [...prev, amenityId]
     );
   };
 
   const geocodeAddress = async (address: string, isSource: boolean) => {
     if (!address.trim()) return;
-    
+    const coordRegex = /^-?\d+\.?\d*,\s*-?\d+\.?\d*$/;
+    if (coordRegex.test(address.trim())) {
+      const [lat, lng] = address.split(',').map(s => parseFloat(s.trim()));
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        const coords = `${lat},${lng}`;
+        if (isSource) {
+          setSource(coords);
+          setSourceCoords(coords);
+          fetchAddressName(lat, lng, true);
+        } else {
+          setDestination(coords);
+          setDestinationCoords(coords);
+          fetchAddressName(lat, lng, false);
+        }
+        return;
+      }
+    }
+
     setIsGeocoding(true);
     try {
-      const result = await routeApi.geocode(address);
-      if (result.success && result.data) {
-        const coords = `${result.data.lat},${result.data.lng}`;
+      const response = await fetch(
+        `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(address)}&apiKey=5ffe1f1598ac467dafc8789f5e787a3e&limit=1`
+      );
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const feature = data.features[0];
+        const lat = feature.properties.lat;
+        const lng = feature.properties.lon;
+        const formattedAddress = feature.properties.formatted;
+        const coords = `${lat},${lng}`;
         if (isSource) {
-          setSourceCoords(coords);
           setSource(coords);
+          setSourceCoords(coords);
+          setSourceAddress(formattedAddress);
         } else {
-          setDestinationCoords(coords);
           setDestination(coords);
+          setDestinationCoords(coords);
+          setDestinationAddress(formattedAddress);
         }
-        Alert.alert(
-          'Location Found',
-          `Found: ${result.data.formattedAddress}`,
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'Could not find the location. Please try a different address.');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to geocode address. Please try again.');
+      console.error('Geocoding error:', error);
     } finally {
       setIsGeocoding(false);
+    }
+  };
+
+  const fetchAddressName = async (lat: number, lng: number, isSource: boolean) => {
+    try {
+      const response = await fetch(
+        `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=5ffe1f1598ac467dafc8789f5e787a3e`
+      );
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        const address = data.features[0].properties.formatted;
+        if (isSource) {
+          setSourceAddress(address);
+        } else {
+          setDestinationAddress(address);
+        }
+      }
+    } catch (error) {
+      console.error('Address fetch error:', error);
     }
   };
 
@@ -125,51 +168,65 @@ export default function RoutesScreen() {
     setSelectedAmenities([]);
     setMaxDetour('5');
     setChargingSpeed('50');
+    setConsumptionOverride('');
+    setSegmentDistanceMeters('200');
+    setOptimizationStrategy('hybrid');
+    setMinimumBatteryAtDestinationPercent('20');
   };
 
   const handlePlanRoute = async () => {
     if (!activeVehicle) {
-      Alert.alert('No Vehicle Selected', 'Please select a vehicle from the Vehicles tab first.');
+      Alert.alert('Missing Vehicle', 'Please select a vehicle to plan the route.');
       return;
     }
 
-    if (!source || !destination) {
-      Alert.alert('Missing Information', 'Please enter both source and destination.');
+    if (!sourceCoords || !destinationCoords) {
+      Alert.alert('Missing Information', 'Please enter valid source and destination.');
       return;
     }
+
+    const currentChargeNum = Math.min(100, Math.max(0, parseFloat(currentCharge || '100')));
+    const currentChargedKwhNum = estimatedChargedKwh != null ? Number(estimatedChargedKwh.toFixed(3)) : null;
+    const consumptionNum = consumptionOverride ? parseFloat(consumptionOverride) : (activeVehicle?.consumption_kWh_per_km ?? null);
+    const preferredMaxDetourKmNum = Math.min(50, Math.max(0, parseFloat(maxDetour || '5')));
+    const segmentDistanceMetersNum = Math.min(1000, Math.max(50, parseInt(segmentDistanceMeters || '200', 10)));
+    const preferredChargingSpeedKwNum = chargingSpeed ? parseFloat(chargingSpeed) : null;
+    const minimumBatteryAtDestinationPercentNum = Math.min(100, Math.max(0, parseFloat(minimumBatteryAtDestinationPercent || '20')));
 
     setIsPlanning(true);
-
     try {
-      const request: RoutePlanRequest = {
-        source,
-        destination,
+      const request: RoutePlanRequest & any = {
+        source: sourceCoords,
+        destination: destinationCoords,
         vehicleId: activeVehicle._id || activeVehicle.id,
-        currentChargePercent: parseFloat(currentCharge),
-        preferredMaxDetourKm: parseFloat(maxDetour),
-        amenitiesFilter: selectedAmenities.length > 0 ? selectedAmenities : undefined,
-        preferredChargingSpeedKw: parseFloat(chargingSpeed),
-        segmentDistanceMeters: 300,
+        currentChargePercent: Number.isFinite(currentChargeNum) ? currentChargeNum : 100,
+        currentChargedKwh: currentChargedKwhNum,
+        consumption_kWh_per_km: consumptionNum,
+        preferredMaxDetourKm: preferredMaxDetourKmNum,
+        segmentDistanceMeters: segmentDistanceMetersNum,
+        amenitiesFilter: selectedAmenities.length > 0 ? selectedAmenities : [],
+        preferredChargingSpeedKw: preferredChargingSpeedKwNum,
+        optimizationStrategy: optimizationStrategy || 'hybrid',
+        minimumBatteryAtDestinationPercent: minimumBatteryAtDestinationPercentNum,
       };
 
       const result = await routeApi.planRoute(request);
-
       router.push({
         pathname: '/map/view',
         params: {
           routeData: JSON.stringify(result),
-          source,
-          destination,
+          source: sourceCoords,
+          destination: destinationCoords,
         },
       });
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to plan route');
+      console.error('Route planning error:', error);
+      Alert.alert('Error', error.response?.data?.message || error.message || 'Failed to plan route.');
     } finally {
       setIsPlanning(false);
     }
   };
 
-  // Add location permission request
   useEffect(() => {
     requestLocationPermission();
   }, []);
@@ -204,213 +261,388 @@ export default function RoutesScreen() {
     }
   };
 
-  const useCurrentLocation = () => {
+  const useCurrentLocation = async () => {
     if (currentLocation) {
       const coordsString = `${currentLocation.lat},${currentLocation.lng}`;
       setSource(coordsString);
       setSourceCoords(coordsString);
-      Alert.alert('Location Set', 'Your current location has been set as the starting point.');
+      fetchAddressName(currentLocation.lat, currentLocation.lng, true);
     } else {
-      Alert.alert('Location Not Available', 'Please wait while we get your location, or enter manually.');
       getCurrentLocation();
     }
   };
 
   const openMapSelector = () => {
-    // Navigate to map selector screen
     router.push('/map/selector');
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Plan Route</Text>
-        {activeVehicle && (
-          <Text style={styles.subtitle}>{activeVehicle.name}</Text>
-        )}
-      </View>
-
-      <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
-        {!activeVehicle ? (
-          <View style={styles.warning}>
-            <Text style={styles.warningTitle}>No Vehicle Selected</Text>
-            <Text style={styles.warningText}>
-              Please select a vehicle from the Vehicles tab before planning a route.
-            </Text>
+      {/* Enhanced Header with Gradient */}
+      <LinearGradient
+        colors={['#3b82f6', '#2563eb']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
+            <Text style={styles.title}>Plan Your Journey</Text>
+            <Navigation size={28} color="#fff" strokeWidth={2.5} />
           </View>
-        ) : (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Route Details</Text>
+          <Text style={styles.subtitle}>Smart EV route planning with charging stops</Text>
+        </View>
+      </LinearGradient>
 
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabel}>
-                  <MapPin size={18} color="#2563eb" />
-                  <Text style={styles.label}>Source</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.scrollContent}>
+          {!activeVehicle ? (
+            <View style={styles.warningCard}>
+              <View style={styles.warningIconContainer}>
+                <Car size={32} color="#dc2626" />
+              </View>
+              <View style={styles.warningContent}>
+                <Text style={styles.warningTitle}>No Vehicle Selected</Text>
+                <Text style={styles.warningText}>Please select a vehicle from the Vehicles tab before planning a route.</Text>
+              </View>
+            </View>
+          ) : (
+            <>
+              {/* Vehicle Info Card */}
+              <View style={styles.vehicleCard}>
+                <View style={styles.vehicleIconBadge}>
+                  <Zap size={20} color="#3b82f6" strokeWidth={2.5} />
                 </View>
-                <View style={styles.inputWithButton}>
-                  <TextInput
-                    style={[styles.input, styles.inputFlex]}
-                    placeholder="Enter starting location (lat,lng or address)"
-                    value={source}
-                    onChangeText={setSource}
-                    editable={!isPlanning}
-                  />
-                  <TouchableOpacity
-                    style={[styles.geocodeButton, isGeocoding && styles.buttonDisabled]}
-                    onPress={() => geocodeAddress(source, true)}
-                    disabled={isGeocoding || isPlanning}
-                  >
-                    <Search size={16} color="#fff" />
-                  </TouchableOpacity>
+                <View style={styles.vehicleInfo}>
+                  <Text style={styles.vehicleLabel}>Active Vehicle</Text>
+                  <Text style={styles.vehicleName}>{activeVehicle.name || activeVehicle.model}</Text>
+                  <View style={styles.vehicleStats}>
+                    <View style={styles.vehicleStat}>
+                      <Battery size={14} color="#10b981" />
+                      <Text style={styles.vehicleStatText}>{activeVehicle.batteryCapacity}kWh</Text>
+                    </View>
+                    <View style={styles.vehicleStat}>
+                      <Gauge size={14} color="#f59e0b" />
+                      <Text style={styles.vehicleStatText}>{activeVehicle.consumption_kWh_per_km}kWh/km</Text>
+                    </View>
+                  </View>
                 </View>
-                
-                {/* GPS Button */}
-                <TouchableOpacity
-                  style={styles.gpsButton}
-                  onPress={useCurrentLocation}
-                  disabled={!locationPermission || isPlanning}
-                >
-                  <MapPin size={16} color="#10b981" />
-                  <Text style={styles.gpsButtonText}>Use Current Location</Text>
-                </TouchableOpacity>
-                
-                {sourceCoords && (
-                  <Text style={styles.coordsText}>Coordinates: {sourceCoords}</Text>
-                )}
               </View>
 
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabel}>
-                  <Navigation size={18} color="#2563eb" />
-                  <Text style={styles.label}>Destination</Text>
+              {/* Location Section */}
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <MapPin size={20} color="#3b82f6" strokeWidth={2.5} />
+                  <Text style={styles.sectionTitle}>Location</Text>
                 </View>
-                <View style={styles.inputWithButton}>
-                  <TextInput
-                    style={[styles.input, styles.inputFlex]}
-                    placeholder="Enter destination (lat,lng or address)"
-                    value={destination}
-                    onChangeText={setDestination}
-                    editable={!isPlanning}
-                  />
-                  <TouchableOpacity
-                    style={[styles.geocodeButton, isGeocoding && styles.buttonDisabled]}
-                    onPress={() => geocodeAddress(destination, false)}
-                    disabled={isGeocoding || isPlanning}
-                  >
-                    <Search size={16} color="#fff" />
+
+                {/* Source Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Starting Point</Text>
+                  <View style={styles.inputWrapper}>
+                    <View style={styles.inputIcon}>
+                      <View style={styles.dotStart} />
+                    </View>
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="Enter address or coordinates"
+                      placeholderTextColor="#94a3b8"
+                      value={source}
+                      onChangeText={(text) => {
+                        setSource(text);
+                        setSourceCoords('');
+                        setSourceAddress('');
+                      }}
+                      editable={!isPlanning}
+                    />
+                    <TouchableOpacity
+                      style={styles.searchBtn}
+                      onPress={() => geocodeAddress(source, true)}
+                      disabled={isGeocoding || isPlanning}
+                    >
+                      {isGeocoding ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Search size={18} color="#fff" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <TouchableOpacity style={styles.quickBtn} onPress={useCurrentLocation}>
+                    <Target size={16} color="#10b981" />
+                    <Text style={styles.quickBtnText}>Use Current Location</Text>
                   </TouchableOpacity>
+
+                  {sourceAddress && (
+                    <View style={styles.addressBadge}>
+                      <CheckCircle2 size={14} color="#10b981" />
+                      <Text style={styles.addressBadgeText} numberOfLines={2}>{sourceAddress}</Text>
+                    </View>
+                  )}
                 </View>
-                
-                {/* Map Selector Button */}
+
+                {/* Destination Input */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Destination</Text>
+                  <View style={styles.inputWrapper}>
+                    <View style={styles.inputIcon}>
+                      <View style={styles.dotEnd} />
+                    </View>
+                    <TextInput
+                      style={styles.inputField}
+                      placeholder="Enter address or coordinates"
+                      placeholderTextColor="#94a3b8"
+                      value={destination}
+                      onChangeText={(text) => {
+                        setDestination(text);
+                        setDestinationCoords('');
+                        setDestinationAddress('');
+                      }}
+                      editable={!isPlanning}
+                    />
+                    <TouchableOpacity
+                      style={styles.searchBtn}
+                      onPress={() => geocodeAddress(destination, false)}
+                      disabled={isGeocoding || isPlanning}
+                    >
+                      {isGeocoding ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Search size={18} color="#fff" />
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity style={styles.quickBtn} onPress={openMapSelector}>
+                    <MapPin size={16} color="#3b82f6" />
+                    <Text style={styles.quickBtnText}>Select on Map</Text>
+                  </TouchableOpacity>
+
+                  {destinationAddress && (
+                    <View style={styles.addressBadge}>
+                      <CheckCircle2 size={14} color="#10b981" />
+                      <Text style={styles.addressBadgeText} numberOfLines={2}>{destinationAddress}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Battery & Optimization Section */}
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <Battery size={20} color="#3b82f6" strokeWidth={2.5} />
+                  <Text style={styles.sectionTitle}>Battery & Optimization</Text>
+                </View>
+
+                <View style={styles.row}>
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>Current Charge</Text>
+                    <View style={styles.inputWithUnit}>
+                      <TextInput
+                        style={styles.inputFieldSmall}
+                        placeholder="80"
+                        placeholderTextColor="#94a3b8"
+                        value={currentCharge}
+                        onChangeText={setCurrentCharge}
+                        keyboardType="numeric"
+                        editable={!isPlanning}
+                      />
+                      <Text style={styles.inputUnit}>%</Text>
+                    </View>
+                    {estimatedChargedKwh && (
+                      <Text style={styles.inputHint}>≈ {estimatedChargedKwh.toFixed(1)}kWh</Text>
+                    )}
+                  </View>
+
+                  <View style={styles.halfInput}>
+                    <Text style={styles.inputLabel}>Min at Destination</Text>
+                    <View style={styles.inputWithUnit}>
+                      <TextInput
+                        style={styles.inputFieldSmall}
+                        placeholder="20"
+                        placeholderTextColor="#94a3b8"
+                        value={minimumBatteryAtDestinationPercent}
+                        onChangeText={setMinimumBatteryAtDestinationPercent}
+                        keyboardType="numeric"
+                        editable={!isPlanning}
+                      />
+                      <Text style={styles.inputUnit}>%</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.strategyContainer}>
+                  <Text style={styles.inputLabel}>Optimization Strategy</Text>
+                  <View style={styles.strategyRow}>
+                    {(['hybrid', 'time', 'cost'] as const).map((strategy) => (
+                      <TouchableOpacity
+                        key={strategy}
+                        style={[
+                          styles.strategyChip,
+                          optimizationStrategy === strategy && styles.strategyChipActive
+                        ]}
+                        onPress={() => setOptimizationStrategy(strategy)}
+                        disabled={isPlanning}
+                      >
+                        <Text style={[
+                          styles.strategyText,
+                          optimizationStrategy === strategy && styles.strategyTextActive
+                        ]}>
+                          {strategy === 'hybrid' ? '⚡ Balanced' : strategy === 'time' ? '🏃 Fast' : '💰 Economical'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              {/* Amenities Section */}
+              <View style={styles.sectionCard}>
+                <View style={styles.sectionHeader}>
+                  <Settings size={20} color="#3b82f6" strokeWidth={2.5} />
+                  <Text style={styles.sectionTitle}>Amenities Filter</Text>
+                </View>
+                <View style={styles.amenitiesGrid}>
+                  {AMENITIES.map((amenity) => (
+                    <TouchableOpacity
+                      key={amenity.id}
+                      style={[
+                        styles.amenityChipNew,
+                        selectedAmenities.includes(amenity.id) && styles.amenityChipActiveNew
+                      ]}
+                      onPress={() => toggleAmenity(amenity.id)}
+                      disabled={isPlanning}
+                    >
+                      <Text style={styles.amenityEmoji}>{amenity.emoji}</Text>
+                      <Text style={[
+                        styles.amenityLabel,
+                        selectedAmenities.includes(amenity.id) && styles.amenityLabelActive
+                      ]}>
+                        {amenity.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Advanced Settings (Collapsible) */}
+              <TouchableOpacity
+                style={styles.advancedToggle}
+                onPress={() => setShowAdvanced(!showAdvanced)}
+              >
+                <Settings size={18} color="#64748b" />
+                <Text style={styles.advancedToggleText}>Advanced Settings</Text>
+                <ChevronDown
+                  size={18}
+                  color="#64748b"
+                  style={{ transform: [{ rotate: showAdvanced ? '180deg' : '0deg' }] }}
+                />
+              </TouchableOpacity>
+
+              {showAdvanced && (
+                <View style={styles.sectionCard}>
+                  <View style={styles.row}>
+                    <View style={styles.halfInput}>
+                      <Text style={styles.inputLabel}>Max Detour</Text>
+                      <View style={styles.inputWithUnit}>
+                        <TextInput
+                          style={styles.inputFieldSmall}
+                          placeholder="5"
+                          placeholderTextColor="#94a3b8"
+                          value={maxDetour}
+                          onChangeText={setMaxDetour}
+                          keyboardType="numeric"
+                          editable={!isPlanning}
+                        />
+                        <Text style={styles.inputUnit}>km</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.halfInput}>
+                      <Text style={styles.inputLabel}>Charging Speed</Text>
+                      <View style={styles.inputWithUnit}>
+                        <TextInput
+                          style={styles.inputFieldSmall}
+                          placeholder="50"
+                          placeholderTextColor="#94a3b8"
+                          value={chargingSpeed}
+                          onChangeText={setChargingSpeed}
+                          keyboardType="numeric"
+                          editable={!isPlanning}
+                        />
+                        <Text style={styles.inputUnit}>kW</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.row}>
+                    <View style={styles.halfInput}>
+                      <Text style={styles.inputLabel}>Consumption</Text>
+                      <View style={styles.inputWithUnit}>
+                        <TextInput
+                          style={styles.inputFieldSmall}
+                          placeholder={activeVehicle?.consumption_kWh_per_km?.toString() || '0.2'}
+                          placeholderTextColor="#94a3b8"
+                          value={consumptionOverride}
+                          onChangeText={setConsumptionOverride}
+                          keyboardType="numeric"
+                          editable={!isPlanning}
+                        />
+                        <Text style={styles.inputUnit}>kWh/km</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.halfInput}>
+                      <Text style={styles.inputLabel}>Segment</Text>
+                      <View style={styles.inputWithUnit}>
+                        <TextInput
+                          style={styles.inputFieldSmall}
+                          placeholder="200"
+                          placeholderTextColor="#94a3b8"
+                          value={segmentDistanceMeters}
+                          onChangeText={setSegmentDistanceMeters}
+                          keyboardType="numeric"
+                          editable={!isPlanning}
+                        />
+                        <Text style={styles.inputUnit}>m</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
                 <TouchableOpacity
-                  style={styles.mapSelectorButton}
-                  onPress={openMapSelector}
+                  style={[styles.planButton, isPlanning && styles.buttonDisabled]}
+                  onPress={handlePlanRoute}
+                  disabled={isPlanning}
+                  activeOpacity={0.8}
+                >
+                  {isPlanning ? (
+                    <>
+                      <ActivityIndicator size="small" color="#fff" />
+                      <Text style={styles.planButtonText}>Planning...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Navigation size={20} color="#fff" strokeWidth={2.5} />
+                      <Text style={styles.planButtonText}>Plan Route</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.resetButton}
+                  onPress={resetForm}
                   disabled={isPlanning}
                 >
-                  <Navigation size={16} color="#2563eb" />
-                  <Text style={styles.mapSelectorButtonText}>Select on Map</Text>
+                  <Text style={styles.resetButtonText}>Reset Form</Text>
                 </TouchableOpacity>
-                
-                {destinationCoords && (
-                  <Text style={styles.coordsText}>Coordinates: {destinationCoords}</Text>
-                )}
               </View>
-
-              <View style={styles.inputContainer}>
-                <View style={styles.inputLabel}>
-                  <Battery size={18} color="#2563eb" />
-                  <Text style={styles.label}>Current Charge (%)</Text>
-                </View>
-                <TextInput
-                  style={styles.input}
-                  placeholder="80"
-                  value={currentCharge}
-                  onChangeText={setCurrentCharge}
-                  keyboardType="decimal-pad"
-                  editable={!isPlanning}
-                />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Preferences</Text>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Max Detour (km)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="5"
-                  value={maxDetour}
-                  onChangeText={setMaxDetour}
-                  keyboardType="decimal-pad"
-                  editable={!isPlanning}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Preferred Charging Speed (kW)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="50"
-                  value={chargingSpeed}
-                  onChangeText={setChargingSpeed}
-                  keyboardType="decimal-pad"
-                  editable={!isPlanning}
-                />
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Amenities Filter</Text>
-              <View style={styles.amenities}>
-                {AMENITIES.map(amenity => (
-                  <TouchableOpacity
-                    key={amenity}
-                    style={[
-                      styles.amenityChip,
-                      selectedAmenities.includes(amenity) && styles.amenityChipSelected,
-                    ]}
-                    onPress={() => toggleAmenity(amenity)}
-                    disabled={isPlanning}
-                  >
-                    <Text
-                      style={[
-                        styles.amenityText,
-                        selectedAmenities.includes(amenity) && styles.amenityTextSelected,
-                      ]}
-                    >
-                      {amenity}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.button, isPlanning && styles.buttonDisabled]}
-              onPress={handlePlanRoute}
-              disabled={isPlanning}
-            >
-              {isPlanning ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Navigation size={20} color="#fff" />
-                  <Text style={styles.buttonText}>Plan Route</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.resetButton}
-              onPress={resetForm}
-              disabled={isPlanning}
-            >
-              <Text style={styles.resetButtonText}>Reset Form</Text>
-            </TouchableOpacity>
-          </>
-        )}
+            </>
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -421,193 +653,379 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  header: {
+  headerGradient: {
+    paddingTop: 50,
+    paddingBottom: 24,
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+  },
+  headerContent: {
+    // vertical spacing via margins
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
   content: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    padding: 16,
+    paddingBottom: 40,
   },
-  warning: {
-    backgroundColor: '#fef3c7',
-    borderRadius: 12,
+  warningCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fef2f2',
+    borderRadius: 16,
     padding: 20,
-    borderWidth: 1,
-    borderColor: '#fbbf24',
+    borderWidth: 1.5,
+    borderColor: '#fecaca',
+    // use marginRight on icon instead
+  },
+  warningIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  warningContent: {
+    flex: 1,
+    // spacing via margins
   },
   warningTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#991b1b',
   },
   warningText: {
     fontSize: 14,
-    color: '#92400e',
+    color: '#dc2626',
+    lineHeight: 20,
   },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginBottom: 16,
-  },
-  inputContainer: {
-    marginBottom: 16,
-  },
-  inputLabel: {
+  vehicleCard: {
     flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  vehicleIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#dbeafe',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    marginRight: 12,
+  },
+  vehicleInfo: {
+    flex: 1,
+  },
+  vehicleLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  vehicleName: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 4,
     marginBottom: 8,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1e293b',
-  },
-  amenities: {
+  vehicleStats: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    // spacing via marginRight on stat items
   },
-  amenityChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  vehicleStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  vehicleStatText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  sectionCard: {
     backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
-  amenityChipSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  amenityText: {
-    fontSize: 14,
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+    letterSpacing: -0.3,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  inputIcon: {
+    width: 40,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dotStart: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#10b981',
+  },
+  dotEnd: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: '#ef4444',
+  },
+  inputField: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1e293b',
+    paddingVertical: 12,
     fontWeight: '500',
-    color: '#64748b',
   },
-  amenityTextSelected: {
-    color: '#fff',
+  searchBtn: {
+    width: 44,
+    height: 44,
+    backgroundColor: '#3b82f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 2,
+    borderRadius: 10,
   },
-  button: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
-    paddingVertical: 14,
+  quickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
     marginTop: 8,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  quickBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#16a34a',
+  },
+  addressBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  addressBadgeText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#166534',
+    lineHeight: 16,
+  },
+  row: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  halfInput: {
+    flex: 1,
+  },
+  inputWithUnit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    paddingRight: 12,
+  },
+  inputFieldSmall: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1e293b',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    fontWeight: '600',
+  },
+  inputUnit: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  inputHint: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  strategyContainer: {
+    marginTop: 4,
+  },
+  strategyRow: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  strategyChip: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  strategyChipActive: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  strategyText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  strategyTextActive: {
+    color: '#fff',
+  },
+  amenitiesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  amenityChipNew: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+  },
+  amenityChipActiveNew: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#3b82f6',
+  },
+  amenityEmoji: {
+    fontSize: 16,
+  },
+  amenityLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  amenityLabelActive: {
+    color: '#1e40af',
+  },
+  advancedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  advancedToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  actionButtons: {
+    marginVertical: 12,
+  },
+  planButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#3b82f6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
-  buttonText: {
-    color: '#fff',
+  planButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-  },
-  inputWithButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  inputFlex: {
-    flex: 1,
-  },
-  geocodeButton: {
-    backgroundColor: '#10b981',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  coordsText: {
-    fontSize: 12,
-    color: '#10b981',
-    marginTop: 4,
-    fontStyle: 'italic',
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
   resetButton: {
     backgroundColor: '#f8fafc',
-    borderRadius: 8,
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
-    marginTop: 12,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#e2e8f0',
   },
   resetButtonText: {
-    color: '#64748b',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-  },
-  gpsButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#f0fdf4',
-    borderWidth: 1,
-    borderColor: '#10b981',
-    marginTop: 8,
-  },
-  gpsButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#10b981',
-  },
-  mapSelectorButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    backgroundColor: '#eff6ff',
-    borderWidth: 1,
-    borderColor: '#2563eb',
-    marginTop: 8,
-  },
-  mapSelectorButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#2563eb',
+    color: '#64748b',
   },
 });

@@ -1,10 +1,13 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Dimensions, Animated } from 'react-native';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'expo-router';
-import { Car } from 'lucide-react-native';
-import { AuthDebug } from '@/components/AuthDebug';
+import { Car, Zap, MapPin, Battery, Navigation, Lock, Mail, User, Eye, EyeOff, ArrowRight } from 'lucide-react-native';
 import { storage } from '@/utils/storage';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -12,25 +15,40 @@ export default function AuthScreen() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
-  const { login, register, isLoggingIn, isRegistering, isAuthenticated, logout } = useAuth();
+  const { login, register, isLoggingIn, isRegistering, isAuthenticated } = useAuth();
   const router = useRouter();
 
-  // Handle navigation in useEffect to avoid setState during render
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   useEffect(() => {
     const handleAuth = async () => {
       if (isAuthenticated === true) {
         const hasVehicle = await storage.hasSelectedVehicle();
-        
         if (hasVehicle) {
           router.replace('/(tabs)/routes');
         } else {
           router.replace('/vehicle/select');
         }
       }
-      // Don't handle false state here - let screens handle their own auth checks
     };
-    
     handleAuth();
   }, [isAuthenticated]);
 
@@ -59,9 +77,7 @@ export default function AuthScreen() {
         }
         await register({ email, password, name });
       }
-      // Reset form after successful auth
       resetForm();
-      // Navigation will be handled by useEffect
     } catch (err: any) {
       setError(err.response?.data?.message || 'Authentication failed');
     }
@@ -69,26 +85,30 @@ export default function AuthScreen() {
 
   const handleSwitchMode = () => {
     setIsLogin(!isLogin);
-    // Reset form when switching between login/register
     resetForm();
   };
 
-  // Show loading while checking auth status
-  if (isAuthenticated === null) {
+  if (isAuthenticated === null || isAuthenticated === true) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
-
-  // Don't render the form if already authenticated
-  if (isAuthenticated === true) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2563eb" />
-        <Text style={styles.loadingText}>Redirecting...</Text>
+        <LinearGradient
+          colors={['#0f172a', '#1e293b', '#334155']}
+          style={StyleSheet.absoluteFillObject}
+        />
+        <Animated.View style={{ opacity: fadeAnim, alignItems: 'center' }}>
+          <View style={styles.loadingLogoContainer}>
+            <LinearGradient
+              colors={['#3b82f6', '#2563eb']}
+              style={styles.loadingLogoBg}
+            >
+              <Car size={48} color="#fff" strokeWidth={2} />
+            </LinearGradient>
+          </View>
+          <ActivityIndicator size="large" color="#3b82f6" style={{ marginTop: 20 }} />
+          <Text style={styles.loadingText}>
+            {isAuthenticated === true ? 'Welcome back!' : 'Loading...'}
+          </Text>
+        </Animated.View>
       </View>
     );
   }
@@ -100,80 +120,249 @@ export default function AuthScreen() {
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Car color="#2563eb" size={48} />
-          <Text style={styles.title}>EV Route Planner</Text>
-          <Text style={styles.subtitle}>Plan your journey with confidence</Text>
-        </View>
+      <LinearGradient
+        colors={['#0f172a', '#1e293b', '#334155']}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-        <View style={styles.form}>
-          {!isLogin && (
-            <View style={styles.inputContainer}>
-              <Text style={styles.label}>Name</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your name"
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                editable={!isLoading}
-              />
+      {/* Decorative Background Blobs */}
+      <View style={styles.blob1} />
+      <View style={styles.blob2} />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Hero Section */}
+        <Animated.View
+          style={[
+            styles.heroSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <LinearGradient
+            colors={['#3b82f6', '#2563eb']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.logoContainer}
+          >
+            <Car size={40} color="#fff" strokeWidth={2.5} />
+          </LinearGradient>
+
+          <Text style={styles.appTitle}>EV Route Planner</Text>
+          <Text style={styles.tagline}>Smart charging stops for your journey</Text>
+
+          {/* Feature Pills */}
+          <View style={styles.featurePills}>
+            <View style={styles.featurePill}>
+              <Zap size={14} color="#fbbf24" strokeWidth={2.5} />
+              <Text style={styles.featurePillText}>Smart Routes</Text>
             </View>
-          )}
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              editable={!isLoading}
-            />
+            <View style={styles.featurePill}>
+              <Battery size={14} color="#10b981" strokeWidth={2.5} />
+              <Text style={styles.featurePillText}>Battery Tracking</Text>
+            </View>
+            <View style={styles.featurePill}>
+              <MapPin size={14} color="#ef4444" strokeWidth={2.5} />
+              <Text style={styles.featurePillText}>Live Traffic</Text>
+            </View>
           </View>
+        </Animated.View>
 
-          <View style={styles.inputContainer}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              editable={!isLoading}
-            />
+        {/* Glass Auth Card */}
+        <Animated.View
+          style={[
+            styles.authCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+
+          {/* Glassmorphism effect */}
+          <View style={styles.glassCard}>
+            {/* <Text>Hola</Text> */}
+            {/* Tab Switcher */}
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[styles.tab, isLogin && styles.tabActive]}
+                onPress={() => setIsLogin(true)}
+                disabled={isLoading}
+              >
+                <Text style={[styles.tabText, isLogin && styles.tabTextActive]}>Login</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, !isLogin && styles.tabActive]}
+                onPress={() => setIsLogin(false)}
+                disabled={isLoading}
+              >
+                <Text style={[styles.tabText, !isLogin && styles.tabTextActive]}>Register</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.form}>
+              {!isLogin && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Full Name</Text>
+                  <View style={styles.inputWrapper}>
+                    <User size={20} color="#94a3b8" strokeWidth={2} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="John Doe"
+                      placeholderTextColor="#64748b"
+                      value={name}
+                      onChangeText={setName}
+                      autoCapitalize="words"
+                      editable={!isLoading}
+                    />
+                  </View>
+                </View>
+              )}
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Email Address</Text>
+                <View style={styles.inputWrapper}>
+                  <Mail size={20} color="#94a3b8" strokeWidth={2} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="you@example.com"
+                    placeholderTextColor="#64748b"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={!isLoading}
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <Lock size={20} color="#94a3b8" strokeWidth={2} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="••••••••"
+                    placeholderTextColor="#64748b"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    editable={!isLoading}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    {showPassword ? (
+                      <EyeOff size={20} color="#94a3b8" strokeWidth={2} />
+                    ) : (
+                      <Eye size={20} color="#94a3b8" strokeWidth={2} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {error ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[styles.submitButton, isLoading && styles.submitButtonDisabled]}
+                onPress={handleSubmit}
+                disabled={isLoading}
+              >
+                <LinearGradient
+                  colors={['#3b82f6', '#2563eb']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.submitGradient}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.submitButtonText}>
+                        {isLogin ? 'Sign In' : 'Create Account'}
+                      </Text>
+                      <ArrowRight size={20} color="#fff" strokeWidth={2.5} />
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.switchButton}
+                onPress={handleSwitchMode}
+                disabled={isLoading}
+              >
+                <Text style={styles.switchText}>
+                  {isLogin
+                    ? "Don't have an account? "
+                    : 'Already have an account? '
+                  }
+                  <Text style={styles.switchTextBold}>
+                    {isLogin ? 'Sign up' : 'Sign in'}
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
+        </Animated.View>
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-            onPress={handleSubmit}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>
-                {isLogin ? 'Login' : 'Register'}
-              </Text>
-            )}
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.switchButton}
-            onPress={handleSwitchMode}
-            disabled={isLoading}
-          >
-            <Text style={styles.switchText}>
-              {isLogin ? "Don't have an account? Register" : 'Already have an account? Login'}
+        {/* Features Section */}
+        <View style={styles.featuresSection}>
+          <View style={styles.featureCard}>
+            <View style={styles.featureIconContainer}>
+              <LinearGradient
+                colors={['#3b82f6', '#2563eb']}
+                style={styles.featureIconGradient}
+              >
+                <Navigation size={24} color="#fff" strokeWidth={2} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.featureTitle}>Optimized Routes</Text>
+            <Text style={styles.featureDescription}>
+              AI-powered routing considers battery, traffic, and charging stations
             </Text>
-          </TouchableOpacity>
+          </View>
+
+          <View style={styles.featureCard}>
+            <View style={styles.featureIconContainer}>
+              <LinearGradient
+                colors={['#10b981', '#059669']}
+                style={styles.featureIconGradient}
+              >
+                <Zap size={24} color="#fff" strokeWidth={2} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.featureTitle}>Smart Charging</Text>
+            <Text style={styles.featureDescription}>
+              Find the best charging stops along your journey
+            </Text>
+          </View>
+
+          <View style={styles.featureCard}>
+            <View style={styles.featureIconContainer}>
+              <LinearGradient
+                colors={['#f59e0b', '#d97706']}
+                style={styles.featureIconGradient}
+              >
+                <Battery size={24} color="#fff" strokeWidth={2} />
+              </LinearGradient>
+            </View>
+            <Text style={styles.featureTitle}>Battery Monitor</Text>
+            <Text style={styles.featureDescription}>
+              Real-time battery tracking and range estimation
+            </Text>
+          </View>
         </View>
-      </View>
+
+        <Text style={styles.footer}>© 2025 EV Route Planner. All rights reserved.</Text>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -181,89 +370,271 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 48,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginTop: 16,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    marginTop: 8,
-  },
-  form: {
-    width: '100%',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1e293b',
-  },
-  button: {
-    backgroundColor: '#2563eb',
-    borderRadius: 8,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  switchButton: {
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  switchText: {
-    color: '#2563eb',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  error: {
-    color: '#ef4444',
-    fontSize: 14,
-    marginBottom: 12,
-    textAlign: 'center',
+  scrollContent: {
+    paddingVertical: 40,
+    paddingHorizontal: 20,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+  },
+  loadingLogoContainer: {
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // loadingLogoContainer: {
+  //   marginBottom: 20,
+  // },
+  loadingLogoBg: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
   loadingText: {
-    marginTop: 12,
+    color: '#e2e8f0',
     fontSize: 16,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  blob1: {
+    position: 'absolute',
+    top: -100,
+    right: -100,
+    width: 300,
+    height: 300,
+    borderRadius: 150,
+    backgroundColor: '#3b82f6',
+    opacity: 0.1,
+  },
+  blob2: {
+    position: 'absolute',
+    bottom: -150,
+    left: -150,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: '#2563eb',
+    opacity: 0.08,
+  },
+  heroSection: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  logoContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+  },
+  appTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+    letterSpacing: -1,
+  },
+  tagline: {
+    fontSize: 16,
+    color: '#94a3b8',
+    fontWeight: '500',
+    marginBottom: 20,
+  },
+  featurePills: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  featurePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  featurePillText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  authCard: {
+    marginBottom: 32,
+  },
+  glassCard: {
+    // softened glass background so the padded form area doesn't appear as a bright patch
+    backgroundColor: 'rgba(255, 255, 255, 0.1)', // reduced from 0.08
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)', // subtler edge
+    // slightly deeper, subtler shadow to blend with background
+    shadowColor: 'rgba(0,0,0,0)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  tabActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.3)',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.5)',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#94a3b8',
+  },
+  tabTextActive: {
+    color: '#fff',
+  },
+  form: {
+    // vertical spacing handled by nested elements' margin/padding
+  },
+  inputGroup: {
+    // spacing via marginBottom on inputGroup usage
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#e2e8f0',
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderRadius: 10,
+    padding: 12,
+  },
+  errorText: {
+    color: '#fca5a5',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  submitButton: {
+    marginTop: 8,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 16,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  switchButton: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  switchText: {
+    color: '#94a3b8',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  switchTextBold: {
+    color: '#60a5fa',
+    fontWeight: '700',
+  },
+  featuresSection: {
+    gap: 16,
+    marginBottom: 32,
+  },
+  featureCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  featureIconContainer: {
+    marginBottom: 12,
+  },
+  featureIconGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 14,
+    color: '#94a3b8',
+    lineHeight: 20,
+  },
+  footer: {
+    textAlign: 'center',
+    fontSize: 12,
     color: '#64748b',
+    fontWeight: '500',
   },
 });

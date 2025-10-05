@@ -52,14 +52,20 @@ export default function MapSelectorScreen() {
     setIsLoadingAddress(true);
     
     try {
-      const result = await routeApi.reverseGeocode(lat, lng);
-      if (result.success && result.data) {
-        setSelectedAddress(result.data.formattedAddress || `${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+      const response = await fetch(
+        `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lng}&apiKey=5ffe1f1598ac467dafc8789f5e787a3e`
+      );
+      const data = await response.json();
+      
+      if (data.features && data.features.length > 0) {
+        const props = data.features[0].properties;
+        const address = props.formatted || props.city || props.county || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        setSelectedAddress(address);
       } else {
         setSelectedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
       }
     } catch (error) {
-      console.error('Reverse geocoding failed:', error);
+      console.error('Geocoding failed:', error);
       setSelectedAddress(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
     } finally {
       setIsLoadingAddress(false);
@@ -67,16 +73,9 @@ export default function MapSelectorScreen() {
   };
 
   const confirmDestination = () => {
-    if (!selectedLocation) {
-      Alert.alert('No Destination Selected', 'Please tap on the map to select a destination.');
-      return;
-    }
-
-    // Pass the selected location back to routes screen
+    if (!selectedLocation) return;
     router.back();
-    // Note: In a real app, you'd use navigation params or state management
-    // For now, we'll use a simple approach with global state or local storage
-    global.selectedDestination = {
+    (global as any).selectedDestination = {
       coords: `${selectedLocation.lat},${selectedLocation.lng}`,
       address: selectedAddress,
     };
@@ -224,7 +223,7 @@ export default function MapSelectorScreen() {
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>Select Destination</Text>
-          <Text style={styles.headerSubtitle}>Tap on the map to choose your destination</Text>
+          <Text style={styles.headerSubtitle}>Tap on the map</Text>
         </View>
       </View>
 
@@ -239,22 +238,22 @@ export default function MapSelectorScreen() {
         scalesPageToFit={true}
       />
 
-      {/* Bottom Card */}
       {selectedLocation && (
         <View style={styles.bottomCard}>
-          <View style={styles.locationInfo}>
-            <MapPin size={20} color="#2563eb" />
-            <View style={styles.addressContainer}>
-              <Text style={styles.addressTitle}>Selected Destination:</Text>
-              {isLoadingAddress ? (
-                <ActivityIndicator size="small" color="#2563eb" />
-              ) : (
-                <Text style={styles.addressText}>{selectedAddress}</Text>
-              )}
-              <Text style={styles.coordsText}>
-                {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
-              </Text>
-            </View>
+          <View style={styles.coordsDisplay}>
+            <Text style={styles.coordsLabel}>Coordinates:</Text>
+            <Text style={styles.coordsValue}>
+              {selectedLocation.lat.toFixed(6)}, {selectedLocation.lng.toFixed(6)}
+            </Text>
+          </View>
+          
+          <View style={styles.addressDisplay}>
+            <Text style={styles.addressLabel}>📍 Location:</Text>
+            {isLoadingAddress ? (
+              <ActivityIndicator size="small" color="#2563eb" />
+            ) : (
+              <Text style={styles.addressValue}>{selectedAddress}</Text>
+            )}
           </View>
           
           <TouchableOpacity 
@@ -263,7 +262,7 @@ export default function MapSelectorScreen() {
             disabled={isLoadingAddress}
           >
             <Check size={20} color="#fff" />
-            <Text style={styles.confirmButtonText}>Confirm Destination</Text>
+            <Text style={styles.confirmButtonText}>Confirm</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -331,31 +330,39 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-  locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-    gap: 12,
+  addressDisplay: {
+    backgroundColor: '#f0fdf4',
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 12,
   },
-  addressContainer: {
-    flex: 1,
-  },
-  addressTitle: {
-    fontSize: 14,
+  addressLabel: {
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748b',
+    color: '#15803d',
+    marginBottom: 6,
+  },
+  addressValue: {
+    fontSize: 14,
+    color: '#166534',
+    lineHeight: 20,
+  },
+  coordsDisplay: {
+    backgroundColor: '#eff6ff',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 16,
+  },
+  coordsLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#1e40af',
     marginBottom: 4,
   },
-  addressText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1e293b',
-    marginBottom: 4,
-  },
-  coordsText: {
-    fontSize: 12,
-    color: '#64748b',
+  coordsValue: {
+    fontSize: 11,
     fontFamily: 'monospace',
+    color: '#1e3a8a',
   },
   confirmButton: {
     backgroundColor: '#2563eb',

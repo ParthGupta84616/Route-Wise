@@ -94,14 +94,50 @@ export interface RouteSegment {
 }
 
 export interface RoutePlanRequest {
-  source: string;
-  destination: string;
+  source: string; // "lat,lng" format
+  destination: string; // "lat,lng" format
   vehicleId: string;
-  currentChargePercent: number;
-  segmentDistanceMeters?: number;
+  currentChargePercent?: number;
+  currentChargedKwh?: number;
+  consumption_kWh_per_km?: number;
   preferredMaxDetourKm?: number;
+  segmentDistanceMeters?: number;
   amenitiesFilter?: string[];
   preferredChargingSpeedKw?: number;
+  optimizationStrategy?: 'time' | 'cost' | 'hybrid';
+  minimumBatteryAtDestinationPercent?: number;
+}
+
+// Helper function to validate and format coordinates
+export function formatCoordinates(lat: number, lng: number): string {
+  if (isNaN(lat) || isNaN(lng)) {
+    throw new Error('Invalid coordinates: NaN values');
+  }
+  if (lat < -90 || lat > 90) {
+    throw new Error(`Invalid latitude: ${lat} (must be between -90 and 90)`);
+  }
+  if (lng < -180 || lng > 180) {
+    throw new Error(`Invalid longitude: ${lng} (must be between -180 and 180)`);
+  }
+  return `${lat},${lng}`;
+}
+
+export function parseCoordinates(coordString: string): { lat: number; lng: number } {
+  const parts = coordString.split(',');
+  if (parts.length !== 2) {
+    throw new Error('Coordinates must be in "lat,lng" format');
+  }
+  const lat = parseFloat(parts[0].trim());
+  const lng = parseFloat(parts[1].trim());
+  
+  if (isNaN(lat) || isNaN(lng)) {
+    throw new Error('Invalid coordinate values');
+  }
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    throw new Error('Coordinates out of valid range');
+  }
+  
+  return { lat, lng };
 }
 
 export interface RoutePlanResponse {

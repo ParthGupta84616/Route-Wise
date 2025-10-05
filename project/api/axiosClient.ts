@@ -1,12 +1,13 @@
 import axios from 'axios';
 import { storage } from '@/utils/storage';
+import Constants from 'expo-constants';
 
-// API Configuration
-// Change this URL to point to your backend API
-const API_BASE_URL = 'http://192.168.29.177:5000/api';
-
-// For local development, uncomment the line below:
-// const API_BASE_URL = 'http://localhost:5000/api';
+// Determine API base URL from Expo extras if provided, otherwise fall back to the
+// previously hardcoded URL. This enables changing the backend URL without
+// editing source files (useful when building an APK).
+const hardcoded = 'https://bfab17803a89.ngrok-free.app/api';
+const expoExtraUrl = (Constants?.expoConfig?.extra as any)?.API_BASE_URL;
+export const API_BASE_URL = typeof expoExtraUrl === 'string' && expoExtraUrl.length > 0 ? expoExtraUrl : hardcoded;
 
 export const axiosClient = axios.create({
   baseURL: API_BASE_URL,

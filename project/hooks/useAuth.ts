@@ -25,16 +25,24 @@ export function useAuth() {
     }
   };
 
-  const { data: user, isLoading: isLoadingUser } = useQuery({
+  const userQuery = useQuery<any, Error>({
     queryKey: ['user'],
     queryFn: authApi.getCurrentUser,
     enabled: isAuthenticated === true,
     retry: false,
-    onError: async () => {
-      await storage.clearAll();
-      setIsAuthenticated(false);
-    },
   });
+
+  const user = userQuery.data;
+
+  // If fetching the current user fails, clear storage and mark unauthenticated
+  useEffect(() => {
+    if (userQuery.isError) {
+      (async () => {
+        await storage.clearAll();
+        setIsAuthenticated(false);
+      })();
+    }
+  }, [userQuery.isError]);
 
   const loginMutation = useMutation({
     mutationFn: (credentials: LoginCredentials) => authApi.login(credentials),
@@ -87,7 +95,7 @@ export function useAuth() {
   return {
     user,
     isAuthenticated,
-    isLoading: isAuthenticated === null || (isAuthenticated && isLoadingUser),
+  isLoading: isAuthenticated === null || (isAuthenticated && userQuery.isLoading),
     login: loginMutation.mutateAsync,
     register: registerMutation.mutateAsync,
     logout,

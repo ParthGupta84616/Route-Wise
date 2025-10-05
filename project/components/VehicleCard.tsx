@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
 import { Vehicle } from '@/types';
 import { CreditCard as Edit, Trash2, Check } from 'lucide-react-native';
 
@@ -8,9 +8,9 @@ interface VehicleCardProps {
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  isDeleting?: boolean;
 }
-
-export function VehicleCard({ vehicle, isActive, onSelect, onEdit, onDelete }: VehicleCardProps) {
+export function VehicleCard({ vehicle, isActive, onSelect, onEdit, onDelete, isDeleting }: VehicleCardProps) {
   const handleDelete = () => {
     Alert.alert(
       'Delete Vehicle',
@@ -58,13 +58,17 @@ export function VehicleCard({ vehicle, isActive, onSelect, onEdit, onDelete }: V
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionButton} onPress={onEdit}>
+          <TouchableOpacity style={styles.actionButton} onPress={onEdit} disabled={isDeleting}>
             <Edit size={18} color="#2563eb" />
             <Text style={styles.actionText}>Edit</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={handleDelete}>
-            <Trash2 size={18} color="#ef4444" />
-            <Text style={[styles.actionText, styles.deleteText]}>Delete</Text>
+          <TouchableOpacity style={styles.actionButton} onPress={handleDelete} disabled={isDeleting}>
+            {isDeleting ? (
+              <ActivityIndicator size="small" color="#ef4444" />
+            ) : (
+              <Trash2 size={18} color="#ef4444" />
+            )}
+            <Text style={[styles.actionText, styles.deleteText]}>{isDeleting ? 'Deleting...' : 'Delete'}</Text>
           </TouchableOpacity>
         </View>
       </View>
