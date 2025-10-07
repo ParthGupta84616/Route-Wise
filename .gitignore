@@ -48,4 +48,4 @@ coverage/
 .cache/
 ".env.local" 
 
-/projects/
+/project/
