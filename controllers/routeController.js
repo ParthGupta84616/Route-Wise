@@ -542,7 +542,7 @@ exports.planRoute = asyncHandler(async (req, res) => {
     minimumBatteryAtDestinationPercent = 20
   } = req.body;
 
-  // return res.json(require("../output.json"));
+  // return res.json(require("../output.json"));  
 
 
   if (!source || !destination || !vehicleId) {
